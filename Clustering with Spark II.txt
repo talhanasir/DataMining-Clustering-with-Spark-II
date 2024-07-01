@@ -1,0 +1,50 @@
+ssh mtalh2@cscluster.uis.edu
+
+wc -l /home/data/CSC533DM/uber.csv
+ls -alFh /home/data/CSC533DM/uber.csv
+
+head /home/data/CSC533DM/uber.csv
+
+hadoop fs -put /home/data/CSC533DM/uber.csv
+hadoop fs -ls /user/data/CSC533DM/uber.csv
+
+pyspark
+
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, TimestampType, DoubleType, StringType
+
+custom_schema = StructType([
+    StructField("Date/Time", TimestampType(), True),
+    StructField("Lat", DoubleType(), True),
+    StructField("Lon", DoubleType(), True),
+    StructField("Base", StringType(), True)
+])
+
+uber_df = spark.read.csv("uber.csv", header=True, schema=custom_schema, timestampFormat="M/d/yyyy H:mm:ss")
+uber_df.show(5)
+
+from pyspark.ml.feature import VectorAssembler
+assembler = VectorAssembler(inputCols=['Lat', 'Lon'], outputCol='features')
+features_df = assembler.transform(uber_df)
+features_df.show(5)
+
+
+from pyspark.ml.evaluation import ClusteringEvaluator
+from pyspark.ml.clustering import KMeans
+k=8
+kmeans = KMeans().setK(k).setSeed(1)
+model = kmeans.fit(features_df)
+predictions = model.transform(features_df)
+predictions.show(truncate=False)
+evaluator = ClusteringEvaluator()
+silhouette = evaluator.evaluate(predictions)
+print("Silhouette with squared euclidean distance = " + str(silhouette))
+centers = model.clusterCenters()
+print("Cluster Centers: ")
+for center in centers: print(center)
+
+
+scp -r mtalh2@10.64.3.50:/home/data/CSC533DM/uber.csv "C:\Users\Precision T3620\Downloads\New folder (2)"
+
+clusterCounts = predictions.groupBy("prediction").count().orderBy("prediction")
+clusterCounts.show()
